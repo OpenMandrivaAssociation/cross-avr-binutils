@@ -7,12 +7,13 @@
 %define spu_arches	ppc ppc64
 
 # Define if building a cross-binutils
+%define cross		avr
 %define build_cross	0
 %{expand: %{?cross:	%%global build_cross 1}}
 
 %if %{build_cross}
 %define target_cpu	%{cross}
-%define target_platform	%{target_cpu}-linux
+%define target_platform	%{target_cpu}
 %if "%{target_cpu}" == "spu"
 %define target_platform	%{target_cpu}-unknown-elf
 %endif
@@ -270,8 +271,6 @@ rm -rf $RPM_BUILD_ROOT%{_prefix}/%{_target_platform}/
 %else
 rm -f  $RPM_BUILD_ROOT%{_libdir}/libiberty.a
 rm -rf $RPM_BUILD_ROOT%{_infodir}
-rm -rf $RPM_BUILD_ROOT%{_prefix}/%{target_platform}/lib/ldscripts/
-rm -f  $RPM_BUILD_ROOT%{_prefix}/%{_target_platform}/%{target_cpu}-linux/lib/*.la
 %endif
 
 rm -f $RPM_BUILD_ROOT%{_mandir}/man1/{dlltool,nlmconv,windres}*
@@ -366,7 +365,7 @@ rm -rf $RPM_BUILD_ROOT
 %if "%{name}" == "binutils"
 %{_infodir}/*info*
 %else
-%{_prefix}/%{target_platform}/bin/*
+%{_prefix}/%{target_platform}
 %endif
 
 %ifarch %{spu_arches}
