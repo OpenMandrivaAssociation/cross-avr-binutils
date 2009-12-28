@@ -2,6 +2,7 @@
 %define lib_major	2
 %define lib_name_orig	%{package_prefix}%mklibname binutils
 %define lib_name	%{lib_name_orig}%{lib_major}
+%define	dev_name	%mklibname binutils -d
 
 # Allow SPU support for native PowerPC arches, not cross env packages
 %define spu_arches	ppc ppc64
@@ -29,9 +30,12 @@
 %define arch		%(echo %{target_cpu}|sed -e "s/\(i.86\|athlon\)/i386/" -e "s/amd64/x86_64/" -e "s/\(sun4.*\|sparcv[89]\)/sparc/")
 %define isarch()	%(case %{arch} in (%1) echo 1;; (*) echo 0;; esac)
 
+# List of targets where gold can be enabled
+%define gold_arches %(echo %{ix86} x86_64 ppc ppc64 %{sparc} %{arm}|sed 's/[ ]/\|/g')
+
 Summary:	GNU Binary Utility Development Utilities
 Name:		%{package_prefix}binutils
-Version:	2.19.51.0.2
+Version:	2.20.51.0.4
 Release:	%manbo_mkrel 1
 License:	GPLv3+
 Group:		Development/Other
@@ -40,34 +44,39 @@ Source0:	http://ftp.kernel.org/pub/linux/devel/binutils/binutils-%{version}.tar.
 Source1:	build_cross_binutils.sh
 Source2:	spu_ovl.o
 Source3:	embedspu.sh
+Source4:	binutils-2.19.50.0.1-output-format.sed
 Buildroot:	%{_tmppath}/%{name}-%{version}-root
 %if "%{name}" == "binutils"
 Requires:	%{lib_name} = %{version}-%{release}
 Requires(post):	info-install
 Requires(preun):info-install
+Provides:	%{lib_name} = %{version}-%{release}
+Obsoletes:	%{lib_name}
 %endif
 Conflicts:	gcc-c++ < 3.2.3-1mdk
 BuildRequires:	autoconf automake bison flex gcc gettext texinfo
 BuildRequires:	dejagnu zlib-devel
 # make check'ing requires libdl.a
 BuildRequires:	glibc-static-devel
+# gold make check'ing requires libstdc++.a
+BuildRequires:	libstdc++-static-devel
 
 # Fedora patches:
-Patch01:	binutils-2.19.50.0.1-libtool-lib64.patch
-Patch02:	binutils-2.19.50.0.1-ppc64-pie.patch
-Patch03:	binutils-2.19.50.0.1-ia64-lib64.patch
-Patch04:	binutils-2.19.51.0.2-symbolic-envvar-revert.patch
+Patch01:	binutils-2.20.51.0.2-libtool-lib64.patch
+Patch02:	binutils-2.20.51.0.2-ppc64-pie.patch
+Patch03:	binutils-2.20.51.0.2-ia64-lib64.patch
 # We don't want this one!
-#Patch05:	binutils-2.19.50.0.1-version.patch
-Patch06:	binutils-2.19.50.0.1-set-long-long.patch
-Patch07:	binutils-2.19.50.0.1-build-id.patch
+#Patch05: binutils-2.20.51.0.2-version.patch
+Patch06:	binutils-2.20.51.0.2-set-long-long.patch
+Patch07:	binutils-2.20.51.0.2-build-id.patch
+Patch10:	binutils-2.20.51.0.2-lwp.patch
+Patch13:	binutils-2.20.51.0.4-ppc-hidden-plt-relocs.patch
 
 # Mandriva patches
-Patch21:	binutils-2.19.50.0.1-linux32.patch
-Patch22:	binutils-2.19.50.0.1-mips-string_literal-fixes.patch
-Patch23:	binutils-2.19.51.0.2-mips-gas.patch
+Patch21:	binutils-2.20.51-linux32.patch
+Patch23:	binutils-2.19.51.0.14-mips-gas.patch
 Patch24:	binutils-2.19.51.0.2-mips-ihex.patch
-Patch25:	binutils-2.19.51.0.2-mips-ls2f_fetch_fix.patch
+Patch25:	binutils-2.20.51-mips-ls2f_fetch_fix.patch
 
 %description
 Binutils is a collection of binary utilities, including:
@@ -90,32 +99,24 @@ binary files.  Most programmers will want to install binutils.
 %package -n	spu-binutils
 Summary:	GNU Binary Utility Development Utilities for Cell SPU
 Group:		Development/Other
-Requires:	%{lib_name} = %{version}-%{release}
 
 %description -n	spu-binutils
 This package contains the binutils with Cell SPU support.
 %endif
 
-%package -n	%{lib_name}
+%package -n	%{dev_name}
 Summary:	Main library for %{name}
 Group:		Development/Other
-Provides:	%{lib_name_orig}
+Provides:	%{name}-devel = %{version}-%{release}
+Provides:	%{lib_name}-devel = %{version}-%{release}
+Obsoletes:	%{lib_name}-devel
+Requires:	zlib-devel
 
-%description -n	%{lib_name}
-This package contains the library needed to run programs dynamically
-linked with binutils.
-
-%package -n	%{lib_name}-devel
-Summary:	Main library for %{name}
-Group:		Development/Other
-Requires:	%{lib_name} = %{version}-%{release}
-Provides:	%{lib_name_orig}-devel, %{name}-devel
-
-%description -n	%{lib_name}-devel
-This package contains the library needed to run programs dynamically
-linked with binutils.
-
-This is the development headers for %{lib_name}
+%description -n	%{dev_name}
+This package contains BFD and opcodes static libraries and associated
+header files.  Only *.a libraries are included, because BFD doesn't
+have a stable ABI.  Developers starting new projects are strongly encouraged
+to consider using libelf instead of BFD.
 
 %prep
 %setup -q -n binutils-%{version}
@@ -126,13 +127,12 @@ This is the development headers for %{lib_name}
 %patch03 -p0 -b .ia64-lib64~
 %endif
 %endif
-%patch04 -p1 -b .symbolic-envvar-revert~
-#%patch05 -p0 -b .version~
+#%%patch05 -p0 -b .version~
 %patch06 -p0 -b .set-long-long~
 %patch07 -p0 -b .build-id~
+%patch13 -p1 -b .hidden-plt~
 
 %patch21 -p1 -b .linux32~
-%patch22 -p1 -b .string_literal~
 %patch23 -p1 -b .mips_gas~
 %patch24 -p1 -b .mips_ihex~
 %patch25 -p1 -b .mips_l2sf_fetch_fix~
@@ -190,22 +190,26 @@ TARGET_CONFIG="$TARGET_CONFIG --target=%{target_platform}"
 
 # Don't build shared libraries in cross binutils
 %if "%{name}" == "binutils"
-TARGET_CONFIG="$TARGET_CONFIG --enable-shared"
+TARGET_CONFIG="$TARGET_CONFIG --enable-shared --with-pic"
 %endif
 
 # Binutils comes with its own custom libtool
 # [gb] FIXME: but system libtool also works and has relink fix
 %define __libtoolize /bin/true
 
-# Build with -Wno-error
-export CFLAGS="$RPM_OPT_FLAGS -Wno-error"
-
 # Build main binaries
 rm -rf objs
 mkdir objs
 pushd objs
-CONFIGURE_TOP=.. %configure $TARGET_CONFIG
-%make tooldir=%{_prefix}
+CONFIGURE_TOP=.. %configure2_5x $TARGET_CONFIG	--with-bugurl=http://qa.mandriva.com/ \
+						--enable-gold=both \
+						--enable-linker=bfd \
+						--enable-plugins \
+						--disable-werror
+# There seems to be some problems with builds of gold randomly failing whenever
+# going through the build system, so let's try workaround this by trying to do
+# make once again when it happens...
+%make tooldir=%{_prefix} || make tooldir=%{_prefix}
 popd
 
 # Build alternate binaries (spu-gas in particular)
@@ -224,7 +228,11 @@ if [[ -n "$ALTERNATE_TARGETS" ]]; then
     rm -rf objs-$cpu
     mkdir objs-$cpu
     pushd objs-$cpu
-    CONFIGURE_TOP=.. %configure --enable-shared --target=$target --program-prefix=$cpu-
+    CONFIGURE_TOP=.. %configure	--enable-shared \
+				--target=$target \
+				--program-prefix=$cpu- \
+				--disable-werror \
+				--with-bugurl=http://qa.mandriva.com/
     # make sure we use the fully built libbfd & libopcodes libs
     # XXX could have been simpler to just pass $ADDITIONAL_TARGETS
     # again to configure and rebuild all of those though...
@@ -242,11 +250,12 @@ fi
 # All Tests must pass on x86 and x86_64
 echo ====================TESTING=========================
 %if %isarch i386|x86_64|ppc|ppc64|spu
-%make -C objs check
+# random build failures with gold seems to happen during check as well...
+%make -C objs check LDFLAGS="" || make -C objs check LDFLAGS=""
 [[ -d objs-spu ]] && \
-%make -C objs-spu check-gas
+%make -C objs-spu check-gas LDFLAGS=""
 %else
-%make -C objs -k check || echo make check failed
+%make -C objs -k check LDFLAGS="" || echo make check failed
 %endif
 echo ====================TESTING END=====================
 
@@ -258,6 +267,11 @@ rm -rf $RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT%{_prefix}
 %makeinstall_std -C objs
 
+rm -f $RPM_BUILD_ROOT%{_mandir}/man1/{dlltool,nlmconv,windres}*
+rm -f $RPM_BUILD_ROOT%{_infodir}/dir
+rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
+rm -f $RPM_BUILD_ROOT%{_libdir}/lib{bfd,opcodes}.so
+
 %if "%{name}" == "binutils"
 make -C objs prefix=$RPM_BUILD_ROOT%{_prefix} infodir=$RPM_BUILD_ROOT%{_infodir} install-info
 install -m 644 include/libiberty.h $RPM_BUILD_ROOT%{_includedir}/
@@ -268,30 +282,71 @@ install -m 644 objs/libiberty/libiberty.a $RPM_BUILD_ROOT%{_libdir}/
 install -m 644 objs/libiberty/pic/libiberty.a $RPM_BUILD_ROOT%{_libdir}/
 %endif
 rm -rf $RPM_BUILD_ROOT%{_prefix}/%{_target_platform}/
+
+# Sanity check --enable-64-bit-bfd really works.
+grep '^#define BFD_ARCH_SIZE 64$' %{buildroot}%{_prefix}/include/bfd.h
+# Fix multilib conflicts of generated values by __WORDSIZE-based expressions.
+%ifarch %{ix86} x86_64 ppc ppc64 s390 s390x sh3 sh4 sparc sparc64
+sed -i -e '/^#include "ansidecl.h"/{p;s~^.*$~#include <bits/wordsize.h>~;}' \
+    -e 's/^#define BFD_DEFAULT_TARGET_SIZE \(32\|64\) *$/#define BFD_DEFAULT_TARGET_SIZE __WORDSIZE/' \
+    -e 's/^#define BFD_HOST_64BIT_LONG [01] *$/#define BFD_HOST_64BIT_LONG (__WORDSIZE == 64)/' \
+    -e 's/^#define BFD_HOST_64_BIT \(long \)\?long *$/#if __WORDSIZE == 32\
+#define BFD_HOST_64_BIT long long\
+#else\
+#define BFD_HOST_64_BIT long\
+#endif/' \
+    -e 's/^#define BFD_HOST_U_64_BIT unsigned \(long \)\?long *$/#define BFD_HOST_U_64_BIT unsigned BFD_HOST_64_BIT/' \
+    %{buildroot}%{_prefix}/include/bfd.h
+%endif
+touch -r bfd/bfd-in2.h %{buildroot}%{_prefix}/include/bfd.h
+
+# Generate .so linker scripts for dependencies; imported from glibc/Makerules:
+
+# This fragment of linker script gives the OUTPUT_FORMAT statement
+# for the configuration we are building.
+OUTPUT_FORMAT="\
+/* Ensure this .so library will not be used by a link for a different format
+   on a multi-architecture system.  */
+$(gcc $CFLAGS $LDFLAGS -shared -x c /dev/null -o /dev/null -Wl,--verbose -v 2>&1 | sed -n -f "%{SOURCE4}")"
+
+tee %{buildroot}%{_libdir}/libbfd.so <<EOH
+/* GNU ld script */
+
+$OUTPUT_FORMAT
+
+/* The libz dependency is unexpected by legacy build scripts.  */
+INPUT ( %{_libdir}/libbfd.a -lz )
+EOH
+
+tee %{buildroot}%{_libdir}/libopcodes.so <<EOH
+/* GNU ld script */
+
+$OUTPUT_FORMAT
+
+INPUT ( %{_libdir}/libopcodes.a -lbfd -lz )
+EOH
+
 %else
 rm -f  $RPM_BUILD_ROOT%{_libdir}/libiberty.a
 rm -rf $RPM_BUILD_ROOT%{_infodir}
-%endif
-
-rm -f $RPM_BUILD_ROOT%{_mandir}/man1/{dlltool,nlmconv,windres}*
-rm -f $RPM_BUILD_ROOT%{_infodir}/dir
-rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
-%if "%{name}" != "binutils"
 rm -rf $RPM_BUILD_ROOT%{_datadir}/locale/
+rm -f  $RPM_BUILD_ROOT%{_prefix}/%{_target_platform}/%{target_cpu}-linux/lib/*.la
 %endif
 
 %find_lang binutils
 %find_lang gas
 %find_lang ld
+%find_lang gold
 %find_lang gprof
 cat gas.lang >> binutils.lang
 cat ld.lang >> binutils.lang
+cat gold.lang>> binutils.lang
 cat gprof.lang >> binutils.lang
 
 %find_lang opcodes
 %find_lang bfd
-cat opcodes.lang >> libbinutils.lang
-cat bfd.lang >> libbinutils.lang
+cat opcodes.lang >> binutils.lang
+cat bfd.lang >> binutils.lang
 
 # Alternate binaries
 [[ -d objs-spu ]] && {
@@ -334,22 +389,18 @@ rm -rf $RPM_BUILD_ROOT
 %_remove_install_info standards.info
 %endif
 
-%if %mdkversion < 200900
-%post -n %{lib_name} -p /sbin/ldconfig
-%endif
-%if %mdkversion < 200900
-%postun -n %{lib_name} -p /sbin/ldconfig
-%endif
-
 %files -f binutils.lang
 %defattr(-,root,root)
-%doc README
 %{_bindir}/%{program_prefix}addr2line
 %{_bindir}/%{program_prefix}ar
 %{_bindir}/%{program_prefix}as
 %{_bindir}/%{program_prefix}c++filt
 %{_bindir}/%{program_prefix}gprof
 %{_bindir}/%{program_prefix}ld
+%{_bindir}/%{program_prefix}ld.bfd
+%if %isarch %{gold_arches}
+%{_bindir}/%{program_prefix}ld.gold
+%endif
 %{_bindir}/%{program_prefix}nm
 %{_bindir}/%{program_prefix}objcopy
 %{_bindir}/%{program_prefix}objdump
@@ -364,14 +415,16 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/*
 %if "%{name}" == "binutils"
 %{_infodir}/*info*
+%{_libdir}/libbfd-%{version}*.so
+%{_libdir}/libopcodes-%{version}*.so
 %else
-%{_prefix}/%{target_platform}
+%{_prefix}/%{target_platform}/bin/*
+%{_prefix}/%{target_platform}/lib/ldscripts
 %endif
 
 %ifarch %{spu_arches}
 %files -n spu-binutils
 %defattr(-,root,root)
-%doc README
 %{_bindir}/spu-*
 %{_bindir}/embedspu
 %dir %{_prefix}/spu/bin
@@ -379,18 +432,9 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %if "%{name}" == "binutils"
-%files -n %{lib_name} -f libbinutils.lang
+%files -n %{dev_name}
 %defattr(-,root,root)
-%doc README
-%{_libdir}/libbfd-%{version}*.so
-%{_libdir}/libopcodes-%{version}*.so
-%endif
-
-%if "%{name}" == "binutils"
-%files -n %{lib_name}-devel
-%defattr(-,root,root)
-%doc README
-%{_includedir}/*
+%{_includedir}/*.h
 %{_libdir}/libbfd.a
 %{_libdir}/libbfd.so
 %{_libdir}/libopcodes.a
