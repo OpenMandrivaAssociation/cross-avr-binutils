@@ -14,7 +14,7 @@
 
 %if %{build_cross}
 %define target_cpu	%{cross}
-%define target_platform	%{target_cpu}
+%define target_platform	%{target_cpu}-%{_real_vendor}-linux-gnu
 %if "%{target_cpu}" == "spu"
 %define target_platform	%{target_cpu}-unknown-elf
 %endif
@@ -35,7 +35,7 @@
 
 Summary:	GNU Binary Utility Development Utilities
 Name:		%{package_prefix}binutils
-Version:	2.20.51.0.4
+Version:	2.20.51.0.11
 Release:	%manbo_mkrel 1
 License:	GPLv3+
 Group:		Development/Other
@@ -63,20 +63,25 @@ BuildRequires:	libstdc++-static-devel
 
 # Fedora patches:
 Patch01:	binutils-2.20.51.0.2-libtool-lib64.patch
-Patch02:	binutils-2.20.51.0.2-ppc64-pie.patch
+Patch02:	binutils-2.20.51.0.10-ppc64-pie.patch
 Patch03:	binutils-2.20.51.0.2-ia64-lib64.patch
 # We don't want this one!
 #Patch05: binutils-2.20.51.0.2-version.patch
 Patch06:	binutils-2.20.51.0.2-set-long-long.patch
 Patch07:	binutils-2.20.51.0.2-build-id.patch
-Patch10:	binutils-2.20.51.0.2-lwp.patch
-Patch13:	binutils-2.20.51.0.4-ppc-hidden-plt-relocs.patch
+Patch08:	binutils-2.20.51.0.10-copy-osabi.patch
+Patch09:	binutils-2.20.51.0.10-sec-merge-emit.patch
+Patch10:	binutils-2.20.51.0.10-ldlex-add-caret-pling.patch
+Patch11:	binutils-2.20.51.0.11-compress-compile.patch
 
 # Mandriva patches
-Patch21:	binutils-2.20.51-linux32.patch
+#TODO: should really clean up this patch again now...
+Patch21:	binutils-2.20.51.0.11-linux32.patch
 Patch23:	binutils-2.19.51.0.14-mips-gas.patch
 Patch24:	binutils-2.19.51.0.2-mips-ihex.patch
 Patch25:	binutils-2.20.51-mips-ls2f_fetch_fix.patch
+Patch26:	binutils-2.20.51.0.11-ld-selective45-x86_64-xfail.patch
+Patch27:	binutils-2.20.51.0.11-skip-gold-check.patch
 
 %description
 Binutils is a collection of binary utilities, including:
@@ -130,12 +135,17 @@ to consider using libelf instead of BFD.
 #%%patch05 -p0 -b .version~
 %patch06 -p0 -b .set-long-long~
 %patch07 -p0 -b .build-id~
-%patch13 -p1 -b .hidden-plt~
+%patch08 -p0 -b .copy-osabi~
+%patch09 -p0 -b .sec-merge-emit~
+%patch10 -p0 -b .ldlex~
+%patch11 -p0 -b .compress~
 
 %patch21 -p1 -b .linux32~
 %patch23 -p1 -b .mips_gas~
 %patch24 -p1 -b .mips_ihex~
 %patch25 -p1 -b .mips_l2sf_fetch_fix~
+%patch26 -p1 -b .x86_64~
+%patch27 -p1 -b .skip_gold_check~
 
 # for boostrapping, can be rebuilt afterwards in --enable-maintainer-mode
 cp %{SOURCE2} ld/emultempl/
@@ -203,7 +213,6 @@ mkdir objs
 pushd objs
 CONFIGURE_TOP=.. %configure2_5x $TARGET_CONFIG	--with-bugurl=http://qa.mandriva.com/ \
 						--enable-gold=both \
-						--enable-linker=bfd \
 						--enable-plugins \
 						--disable-werror
 # There seems to be some problems with builds of gold randomly failing whenever
@@ -250,8 +259,9 @@ fi
 # All Tests must pass on x86 and x86_64
 echo ====================TESTING=========================
 %if %isarch i386|x86_64|ppc|ppc64|spu
+%make -C objs check LDFLAGS=""
 # random build failures with gold seems to happen during check as well...
-%make -C objs check LDFLAGS="" || make -C objs check LDFLAGS=""
+make -k -C objs gold-check LDFLAGS="" || :
 [[ -d objs-spu ]] && \
 %make -C objs-spu check-gas LDFLAGS=""
 %else
@@ -315,7 +325,7 @@ tee %{buildroot}%{_libdir}/libbfd.so <<EOH
 $OUTPUT_FORMAT
 
 /* The libz dependency is unexpected by legacy build scripts.  */
-INPUT ( %{_libdir}/libbfd.a -lz )
+INPUT ( %{_libdir}/libbfd.a -liberty -lz )
 EOH
 
 tee %{buildroot}%{_libdir}/libopcodes.so <<EOH
@@ -395,6 +405,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/%{program_prefix}ar
 %{_bindir}/%{program_prefix}as
 %{_bindir}/%{program_prefix}c++filt
+%{_bindir}/%{program_prefix}elfedit
 %{_bindir}/%{program_prefix}gprof
 %{_bindir}/%{program_prefix}ld
 %{_bindir}/%{program_prefix}ld.bfd
