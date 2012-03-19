@@ -1,14 +1,13 @@
 %define target avr
 
 Name:           cross-%{target}-binutils
-Version:        2.21.1
+Version:        2.22
 Release:        %mkrel 1
 Summary:        Cross Compiling GNU binutils targeted at %{target}
 Group:          Development/Other
 License:        GPLv2+
 URL:            http://www.gnu.org/software/binutils/
 Source0:        ftp://ftp.gnu.org/pub/gnu/binutils/binutils-%{version}.tar.bz2
-BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
 BuildRequires:  gawk texinfo
 
 %description
@@ -43,16 +42,10 @@ rm -r %{buildroot}%{_infodir}
 rm    %{buildroot}%{_libdir}/libiberty.a
 
 
-%clean
-rm -rf %{buildroot}
-
-
 %files
 %defattr(-,root,root,-)
 %doc binutils-%{version}/COPYING binutils-%{version}/COPYING.LIB
 %doc binutils-%{version}/README
 %{_prefix}/%{target}
 %{_bindir}/%{target}-*
-%{_mandir}/man1/%{target}-*.1.xz
-
-
+%{_mandir}/man1/%{target}-*.1*
