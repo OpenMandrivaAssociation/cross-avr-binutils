@@ -1,2 +1,4 @@
+removed_sources:
+  binutils-2.22.tar.bz2: 65b304a0b9a53a686ce50a01173d1f40f8efe404
 sources:
-  "binutils-2.22.tar.bz2": 65b304a0b9a53a686ce50a01173d1f40f8efe404
+  binutils-2.23.2.tar.bz2: 042c51073205ebaf88c272d6168f9deb71984b56
