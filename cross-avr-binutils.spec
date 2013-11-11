@@ -18,6 +18,8 @@ native %{_arch} platform.
 
 %prep
 %setup -q -c
+sed -i -e 's/@colophon/@@colophon/' \
+       -e 's/doc@cygnus.com/doc@@cygnus.com/' binutils-%{version}/bfd/doc/bfd.texinfo
 
 
 %build
