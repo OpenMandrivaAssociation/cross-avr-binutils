@@ -2,7 +2,7 @@
 
 Name:           cross-%{target}-binutils
 Version:        2.23.2
-Release:        1
+Release:        2
 Summary:        Cross Compiling GNU binutils targeted at %{target}
 Group:          Development/Other
 License:        GPLv2+
