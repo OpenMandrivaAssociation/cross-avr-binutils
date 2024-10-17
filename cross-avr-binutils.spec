@@ -6,7 +6,7 @@ Release:        2
 Summary:        Cross Compiling GNU binutils targeted at %{target}
 Group:          Development/Other
 License:        GPLv2+
-URL:            http://www.gnu.org/software/binutils/
+URL:            https://www.gnu.org/software/binutils/
 Source0:        ftp://ftp.gnu.org:21/pub/gnu/binutils/binutils-%{version}.tar.bz2
 BuildRequires:  gawk texinfo
 
